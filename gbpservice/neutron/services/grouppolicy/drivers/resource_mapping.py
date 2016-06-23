@@ -15,7 +15,6 @@ import operator
 
 from neutron._i18n import _LE
 from neutron._i18n import _LW
-from neutron.api.v2 import attributes
 from neutron.common import constants as const
 from neutron.common import exceptions as n_exc
 from neutron import context as n_context
@@ -23,6 +22,8 @@ from neutron.db import model_base
 from neutron.db import models_v2
 from neutron.extensions import l3 as ext_l3
 from neutron.extensions import securitygroup as ext_sg
+from neutron_lib import constants
+from neutron_lib import exceptions
 from oslo_config import cfg
 from oslo_log import helpers as log
 from oslo_log import log as logging
@@ -162,7 +163,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             network = None
             try:
                 network = self._get_network(plugin_context, network_id)
-            except n_exc.NetworkNotFound:
+            except exceptions.NetworkNotFound:
                 raise exc.InvalidNetworkAccess(
                     msg="Can't access other tenants networks",
                     network_id=context.current['network_id'],
@@ -184,7 +185,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             router = None
             try:
                 router = self._get_router(context._plugin_context, router_id)
-            except n_exc.NotFound:
+            except exceptions.NotFound:
                 raise exc.InvalidRouterAccess(
                     msg="Can't access other tenants router",
                     router_id=router_id,
@@ -311,7 +312,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                         router_id=l3p.get('routers', [None])[0])
                     # FIP allocated, no need to try further allocation
                     break
-                except n_exc.IpAddressGenerationFailure as ex:
+                except exceptions.IpAddressGenerationFailure as ex:
                     LOG.warning(_LW("Floating allocation failed: %s"),
                                 ex.message)
             if fip_id:
@@ -1315,7 +1316,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                 attrs = {'tenant_id': context.current['tenant_id'],
                          'name': 'pt_' + context.current['name'],
                          'network_id': l2p['network_id'],
-                         'mac_address': attributes.ATTR_NOT_SPECIFIED,
+                         'mac_address': constants.ATTR_NOT_SPECIFIED,
                          'fixed_ips': [{'subnet_id': subnet['id']}],
                          'device_id': '',
                          'device_owner': '',
@@ -1329,7 +1330,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                 self._mark_port_owned(context._plugin_context.session, port_id)
                 context.set_port_id(port_id)
                 return
-            except n_exc.IpAddressGenerationFailure as ex:
+            except exceptions.IpAddressGenerationFailure as ex:
                 LOG.warning(_LW("No more address available in subnet %s"),
                             subnet['id'])
                 last = ex
@@ -1339,7 +1340,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
         if self._port_is_owned(plugin_context.session, port_id):
             try:
                 self._delete_port(plugin_context, port_id)
-            except n_exc.PortNotFound:
+            except exceptions.PortNotFound:
                 LOG.warning(_LW("Port %s is missing") % port_id)
 
     def _plug_router_to_external_segment(self, context, es_dict):
@@ -1475,7 +1476,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                     # next available CIDR.
                     self._delete_subnet(context._plugin_context,
                                         subnet['id'])
-                except n_exc.InvalidInput:
+                except exceptions.InvalidInput:
                     # This exception is not expected. We catch this
                     # here so that it isn't caught below and handled
                     # as if the CIDR is already in use.
@@ -1515,10 +1516,10 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                  'ip_version': context.current['ip_version'],
                  'cidr': context.current['ip_pool'],
                  'enable_dhcp': False,
-                 'gateway_ip': attributes.ATTR_NOT_SPECIFIED,
-                 'allocation_pools': attributes.ATTR_NOT_SPECIFIED,
-                 'dns_nameservers': attributes.ATTR_NOT_SPECIFIED,
-                 'host_routes': attributes.ATTR_NOT_SPECIFIED}
+                 'gateway_ip': constants.ATTR_NOT_SPECIFIED,
+                 'allocation_pools': constants.ATTR_NOT_SPECIFIED,
+                 'dns_nameservers': constants.ATTR_NOT_SPECIFIED,
+                 'host_routes': constants.ATTR_NOT_SPECIFIED}
         subnet = self._create_subnet(context._plugin_context, attrs)
         context._plugin._set_db_np_subnet(
             context._plugin_context, context.current, subnet['id'])
@@ -1531,7 +1532,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             try:
                 self._add_router_interface(plugin_context, router_id,
                                            interface_info)
-            except n_exc.BadRequest:
+            except exceptions.BadRequest:
                 LOG.exception(_LE("Adding subnet to router failed"))
                 raise exc.GroupPolicyInternalError()
 
@@ -1545,17 +1546,17 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                          'ip_version': l3p['ip_version'],
                          'cidr': usable_cidr,
                          'enable_dhcp': True,
-                         'gateway_ip': attributes.ATTR_NOT_SPECIFIED,
-                         'allocation_pools': attributes.ATTR_NOT_SPECIFIED,
+                         'gateway_ip': constants.ATTR_NOT_SPECIFIED,
+                         'allocation_pools': constants.ATTR_NOT_SPECIFIED,
                          'dns_nameservers': (
                              cfg.CONF.resource_mapping.dns_nameservers or
-                             attributes.ATTR_NOT_SPECIFIED),
-                         'host_routes': attributes.ATTR_NOT_SPECIFIED}
+                             constants.ATTR_NOT_SPECIFIED),
+                         'host_routes': constants.ATTR_NOT_SPECIFIED}
                 attrs.update(subnet_specifics)
                 subnet = self._create_subnet(context._plugin_context,
                                              attrs)
                 yield subnet
-            except n_exc.BadRequest:
+            except exceptions.BadRequest:
                 # This is expected (CIDR overlap within network) until
                 # we have a proper subnet allocation algorithm. We
                 # ignore the exception and repeat with the next CIDR.
@@ -1571,7 +1572,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
                     for subnet_id in subnet_ids:
                         self._plug_router_to_subnet(
                             context._plugin_context, subnet_id, router_id)
-                except n_exc.InvalidInput:
+                except exceptions.InvalidInput:
                     # This exception is not expected.
                     LOG.exception(_LE("adding subnet to router failed"))
                     for subnet_id in subnet_ids:
@@ -1619,7 +1620,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             # Reset the proxy gateway PT routes
             if gateway_pt:
                 self._set_proxy_gateway_routes(context, gateway_pt[0])
-        except n_exc.InvalidInput:
+        except exceptions.InvalidInput:
             # This exception is not expected.
             # TODO(ivar): find a better way to rollback
             LOG.exception(_LE("adding subnet to router failed"))
@@ -1866,7 +1867,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
 
     def _sg_rule(self, plugin_context, tenant_id, sg_id, direction,
                  protocol=None, port_range=None, cidr=None,
-                 ethertype=const.IPv4, unset=False):
+                 ethertype=constants.IPv4, unset=False):
         if port_range:
             port_min, port_max = (gpdb.GroupPolicyDbPlugin.
                                   _get_min_max_ports_from_range(port_range))
@@ -1920,7 +1921,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             new_sg_list = cur_sg_list + sg_list
             port[ext_sg.SECURITYGROUPS] = new_sg_list
             self._update_port(context._plugin_context, port_id, port)
-        except n_exc.PortNotFound:
+        except exceptions.PortNotFound:
             LOG.warning(_LW("Port %s is missing") % port_id)
 
     def _disassoc_sgs_from_pt(self, context, pt_id, sg_list):
@@ -1940,7 +1941,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
             new_sg_list = list(set(cur_sg_list) - set(sg_list))
             port[ext_sg.SECURITYGROUPS] = new_sg_list
             self._update_port(plugin_context, port_id, port)
-        except n_exc.PortNotFound:
+        except exceptions.PortNotFound:
             LOG.warning(_LW("Port %s is missing") % port_id)
 
     def _generate_list_of_sg_from_ptg(self, context, ptg_id):
@@ -2167,7 +2168,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
 
         sg_id = self._get_default_security_group(plugin_context, ptg_id,
                                                  tenant_id)
-        ip_v = {4: const.IPv4, 6: const.IPv6}
+        ip_v = {4: constants.IPv4, 6: constants.IPv6}
         if not sg_id:
             sg_name = DEFAULT_SG_PREFIX % ptg_id
             sg = self._create_gbp_sg(plugin_context, tenant_id, sg_name,
@@ -2195,7 +2196,7 @@ class ResourceMappingDriver(api.PolicyDriver, local_api.LocalAPI,
         self._sg_rule(plugin_context, tenant_id, sg_id, 'egress',
                       cidr='169.254.0.0/16', ethertype=ip_v[4])
         for ether_type in ip_v:
-            for proto in [const.PROTO_NAME_TCP, const.PROTO_NAME_UDP]:
+            for proto in [constants.PROTO_NAME_TCP, constants.PROTO_NAME_UDP]:
                 self._sg_rule(plugin_context, tenant_id, sg_id, 'egress',
                               protocol=proto, port_range='53',
                               ethertype=ip_v[ether_type])

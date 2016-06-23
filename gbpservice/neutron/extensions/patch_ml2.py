@@ -11,11 +11,11 @@
 #    under the License.
 
 from neutron.api.v2 import attributes
-from neutron.common import exceptions as exc
 from neutron.common import ipv6_utils
 from neutron.db import db_base_plugin_v2
 from neutron.db import models_v2
-from neutron import i18n
+from neutron import _i18n as i18n
+from neutron_lib import exceptions as e
 from neutron.plugins.ml2.common import exceptions as ml2_exc
 from neutron.plugins.ml2 import driver_context
 from neutron.plugins.ml2 import plugin
@@ -27,7 +27,7 @@ from sqlalchemy import exc as sql_exc
 LOG = log.getLogger(__name__)
 
 
-class InfiniteLoopError(exc.NeutronException):
+class InfiniteLoopError(e.NeutronException):
     """Potentially infinite loop detected."""
     message = _("Too many retries occured.")
 
@@ -79,7 +79,7 @@ def delete_network(self, context, id):
                                     for p in ports)
                 if not only_auto_del:
                     LOG.debug("Tenant-owned ports exist")
-                    raise exc.NetworkInUse(net_id=id)
+                    raise e.NetworkInUse(net_id=id)
 
                 # Get subnets to auto-delete.
                 subnets = (session.query(models_v2.Subnet).
@@ -195,13 +195,13 @@ def delete_subnet(self, context, id):
                             {'ip': user_alloc.ip_address,
                              'port_id': user_alloc.port_id,
                              'subnet': id})
-                        raise exc.SubnetInUse(subnet_id=id)
+                        raise e.SubnetInUse(subnet_id=id)
                     else:
                         # allocation found and it was DHCP port
                         # that appeared after autodelete ports were
                         # removed - need to restart whole operation
                         raise os_db_exception.RetryRequest(
-                            exc.SubnetInUse(subnet_id=id))
+                            e.SubnetInUse(subnet_id=id))
 
             db_base_plugin_v2._check_subnet_not_used(context, id)
 
@@ -236,7 +236,7 @@ def delete_subnet(self, context, id):
                                        if ip.subnet_id != id]}}
                 try:
                     self.update_port(context, a.port_id, data)
-                except exc.PortNotFound:
+                except e.PortNotFound:
                     LOG.debug("Port %s deleted concurrently", a.port_id)
                 except Exception:
                     with excutils.save_and_reraise_exception():

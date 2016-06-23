@@ -14,16 +14,16 @@
 #    under the License.
 
 from neutron._i18n import _LW
-from neutron.common import constants as q_const
-from neutron.common import exceptions as n_exc
-from neutron.db import common_db_mixin
 from neutron.db import extraroute_db
 from neutron.db import l3_gwmode_db
+from neutron_lib import constants as lib_cons
+from neutron_lib import exceptions as n_exc
 from neutron.plugins.common import constants
 from oslo_log import log as logging
 
 LOG = logging.getLogger(__name__)
 
+from gbpservice.common import neutron_patches as common_db_mixin
 from gbpservice.neutron.services.l3_router import apic_driver
 
 
@@ -42,12 +42,12 @@ class ApicGBPL3ServicePlugin(common_db_mixin.CommonDbMixin,
             context, router_id, info, router)
         if info and 'network_id' in info:
             filters = {'device_id': [router_id],
-                       'device_owner': [q_const.DEVICE_OWNER_ROUTER_GW],
+                       'device_owner': [lib_cons.DEVICE_OWNER_ROUTER_GW],
                        'network_id': [info['network_id']]}
             ports = self._core_plugin.get_ports(context.elevated(),
                                                 filters=filters)
             self._core_plugin.update_port_status(
-                context, ports[0]['id'], q_const.PORT_STATUS_ACTIVE)
+                context, ports[0]['id'], lib_cons.PORT_STATUS_ACTIVE)
 
     @staticmethod
     def get_plugin_type():

@@ -14,9 +14,9 @@ import netaddr
 from neutron.callbacks import events
 from neutron.callbacks import registry
 from neutron.callbacks import resources
-from neutron.common import constants as l3_constants
 from neutron.db import l3_db
 from neutron.db import securitygroups_db
+from neutron_lib import constants as l3_constants
 
 
 # Monkey patch create floatingip to allow subnet_id to be specified.
@@ -26,7 +26,7 @@ def create_floatingip(
         self, context, floatingip,
         initial_status=l3_db.l3_constants.FLOATINGIP_STATUS_ACTIVE):
     fip = floatingip['floatingip']
-    tenant_id = self._get_tenant_id_for_create(context, fip)
+    tenant_id = fip.get('tenant_id', None) or context.tenant_id
     fip_id = l3_db.uuidutils.generate_uuid()
 
     f_net_id = fip['floating_network_id']
@@ -41,8 +41,8 @@ def create_floatingip(
 
         port = {'tenant_id': '',  # tenant intentionally not set
                 'network_id': f_net_id,
-                'mac_address': l3_db.attributes.ATTR_NOT_SPECIFIED,
-                'fixed_ips': l3_db.attributes.ATTR_NOT_SPECIFIED,
+                'mac_address': l3_constants.ATTR_NOT_SPECIFIED,
+                'fixed_ips': l3_constants.ATTR_NOT_SPECIFIED,
                 'admin_state_up': True,
                 'device_id': fip_id,
                 'device_owner': l3_db.DEVICE_OWNER_FLOATINGIP,
