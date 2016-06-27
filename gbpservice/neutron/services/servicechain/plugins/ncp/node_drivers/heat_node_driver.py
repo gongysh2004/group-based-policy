@@ -12,7 +12,7 @@
 
 import time
 
-from neutron._i18n import _LE
+from neutron._i18n import _LE, _LI
 from neutron.db import model_base
 from neutron.plugins.common import constants as pconst
 from oslo_config import cfg
@@ -124,7 +124,24 @@ class HeatNodeDriver(driver_base.NodeDriverBase):
 
     @log.log_method_call
     def get_plumbing_info(self, context):
-        pass
+        service_type = context.current_profile['service_type']
+
+        # Management PTs are managed by NFP since it supports hosting multiple
+        # logical services in a single device
+        plumbing_request = {'management': [], 'provider': [{}],
+                            'consumer': [{}]}
+
+        if service_type in [pconst.FIREWALL, pconst.VPN]:
+            plumbing_request['plumbing_type'] = 'gateway'
+        else:  # Loadbalancer which is one arm
+            plumbing_request['consumer'] = []
+            plumbing_request['plumbing_type'] = 'endpoint'
+
+        LOG.info(_LI("Requesting plumber for %(plumbing_request)s PTs for "
+                   "service type %(service_type)s"),
+                 {'plumbing_request': plumbing_request,
+                  'service_type': service_type})
+        return plumbing_request
 
     @log.log_method_call
     def validate_create(self, context):

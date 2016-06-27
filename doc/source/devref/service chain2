@@ -1,0 +1,63 @@
+@startuml
+participant ChainMappingDriver
+participant NSP
+participant TrafficStitchingPlumber
+participant HeatNodeDriver
+participant ResourceMappingDriver
+
+autonumber
+
+ChainMappingDriver->NSP: create_servicechain_instance
+NSP->NSP: create_servicechain_instance
+note right: generate DB object
+activate NSP
+NSP->NSP: _get_scheduled_drivers
+loop for each node in service chain instance
+NSP->HeatNodeDriver: get_plumbing_info
+end
+NSP->NSP: _deploy_servicechain_nodes
+activate NSP
+NSP->TrafficStitchingPlumber: plug_services
+activate TrafficStitchingPlumber
+TrafficStitchingPlumber->TrafficStitchingPlumber: provider = deployment[0]['context'].provider
+loop for each deployers from _get_scheduled_drivers
+alt info['plumbing_type'] == common.PLUMBING_TYPE_GATEWAY
+TrafficStitchingPlumber->TrafficStitchingPlumber: _create_l3_jump_group
+activate TrafficStitchingPlumber
+TrafficStitchingPlumber->ResourceMappingDriver: create_policy_target_group_postcommit
+ResourceMappingDriver->ResourceMappingDriver: _stitch_ptg_to_l3p
+alt ptg.get('proxied_group_id')
+ResourceMappingDriver->ResourceMappingDriver: _stitch_proxy_ptg_to_l3p
+end
+deactivate TrafficStitchingPlumber
+
+TrafficStitchingPlumber->TrafficStitchingPlumber: _create_service_target
+activate TrafficStitchingPlumber
+TrafficStitchingPlumber->ResourceMappingDriver: create_policy_target_postcommit
+alt not context.current['port_id']
+ResourceMappingDriver->ResourceMappingDriver: _use_implicit_port
+note over ResourceMappingDriver
+if context.current.get('group_default_gateway'):
+   attrs['fixed_ips'][0]['ip_address'] = subnet['gateway_ip']
+end note
+
+end
+deactivate TrafficStitchingPlumber
+
+TrafficStitchingPlumber->TrafficStitchingPlumber: _create_service_target
+activate TrafficStitchingPlumber
+TrafficStitchingPlumber->ResourceMappingDriver: create_policy_target_postcommit
+alt context.current.get('proxy_gateway')
+ResourceMappingDriver->ResourceMappingDriver: _update_proxy_gateway_routes
+end
+deactivate TrafficStitchingPlumber
+end
+end
+deactivate TrafficStitchingPlumber
+loop for each deployers from _get_scheduled_drivers
+NSP->HeatNodeDriver: create
+end
+deactivate NSP
+deactivate NSP
+
+@enduml

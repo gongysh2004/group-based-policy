@@ -1,0 +1,37 @@
+@startuml
+actor User
+participant GBPPlugin
+participant policy_driver_manager
+participant ResourceMappingDriver
+participant ChainMappingDriver
+participant NSP
+
+autonumber
+
+User->GBPPlugin: update_policy_target_group
+GBPPlugin->policy_driver_manager: update_policy_target_group_postcommit
+policy_driver_manager->ResourceMappingDriver: update_policy_target_group_postcommit
+
+ResourceMappingDriver->ResourceMappingDriver: _handle_network_service_policy
+note right: deal with network service policy
+activate ResourceMappingDriver
+alt type=ip_single and value=self_subnet
+ResourceMappingDriver->ResourceMappingDriver: _get_last_free_ip
+ResourceMappingDriver->ResourceMappingDriver: _remove_ip_from_allocation_pool
+ResourceMappingDriver->ResourceMappingDriver: _set_policy_ipaddress_mapping
+deactivate ResourceMappingDriver
+note right: reserve an IP from subnet for vip
+end
+
+
+policy_driver_manager->ChainMappingDriver: update_policy_target_group_postcommit
+ChainMappingDriver->ChainMappingDriver: _handle_redirect_action
+activate ChainMappingDriver
+ChainMappingDriver->ChainMappingDriver: _create_servicechain_instance
+alt type=ip_single and value=self_subnet
+ChainMappingDriver->ChainMappingDriver: _get_ptg_policy_ipaddress_mapping
+note right: get config_param_values
+end
+ChainMappingDriver->NSP: _create_servicechain_instance
+deactivate ChainMappingDriver
+@enduml
